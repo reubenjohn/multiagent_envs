@@ -17,6 +17,13 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 2. Roads are built towards the most deprived hotspots.
 3. Vehicles navigate towards randomly assigned goals.
 
+**To Do**
+1. Have vehicles respect safe distance
+2. Have vehicle goal assignment be biased towards more popular hotspots.
+3. Mechanism to build roads to improve connectivity between popular hotspots
+4. Improve cost benefit analysis decisions between expanding roads, extending roads, introducing new vehicles and growing new hotspots.
+5. Have hotspots require funding to grow. With cost benefit ratio as a function of how many vehicles visit it.
+
 `python3 -m multiagent_envs.city_drivers.main`
 
 ![City Drivers](multiagent_envs/city_drivers/screenshots/v0.1.0.png "City Drivers v0.1.0")
