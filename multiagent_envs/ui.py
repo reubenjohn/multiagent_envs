@@ -22,6 +22,7 @@ class Window:
 
 		self.focus = Point(0, 0)
 		self.scale = 5
+		super().__init__()
 
 	def reset(self):
 		self.img = np.ones([self.h, self.w, 3])

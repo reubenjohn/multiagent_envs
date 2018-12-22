@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, Set, Dict, List
 
 from multiagent_envs.const import X, Z
 from multiagent_envs.geometry import Point, Node, Edge
+from multiagent_envs.negotiator import DemandNegotiator, DemandJudge
 from multiagent_envs.util import mag, cos
 
 if TYPE_CHECKING:
 	from multiagent_envs.city_drivers.city import City
-	from multiagent_envs.city_drivers.life import Hotspot
 
 import numpy as np
 
@@ -34,12 +34,16 @@ class Road(Edge):
 		return mag(self.a - self.b)
 
 	@property
+	def breadth(self):
+		return len(self.edges)
+
+	@property
 	def crookedness(self):
 		cos_a_b_x = cos(self.a - self.b, X)
 		return cos_a_b_x * np.sqrt(1 - cos_a_b_x ** 2)
 
 	def next_lane_count(self):
-		return len(self.edges) + (1 if len(self.edges) == 1 else 2)
+		return self.breadth + (1 if self.breadth == 1 else 2)
 
 	def expansion_cost(self):
 		return self.length * self.next_lane_count() ** 2 * (1 + self.crookedness)
@@ -70,7 +74,7 @@ class Road(Edge):
 				self.edges.append(
 					Edge(self.network.to_node(a + right * middle_offset),
 						 self.network.to_node(b + right * middle_offset)))
-		self.max_vel = Road.MAX_LANE_VEL * len(self.edges)
+		self.max_vel = Road.MAX_LANE_VEL * self.breadth
 
 
 class Waypoint:
@@ -100,8 +104,9 @@ class Router(dict):
 		self[intersection] = intersection_map
 
 
-class Transport:
+class Transport(DemandNegotiator):
 	def __init__(self, city: 'City'):
+		super().__init__('Vehicle Demand', Vehicle.cost)
 		self.city = city
 		self.vehicles = set()  # type: Set[Vehicle]
 
@@ -111,8 +116,14 @@ class Transport:
 		self.vehicles.add(new_vehicle)
 		return new_vehicle
 
-	def fund(self, fund):
-		if fund > Vehicle.cost and self.vehicle_cost_benefit_ratio():
+	def setup(self, scenario):
+		return self.average_vehicle_speed() / Vehicle.max_speed
+
+	def compute_demand(self, scenario, speed_leverage):
+		return 1 if speed_leverage == 0 else speed_leverage
+
+	def fund(self, scenario, fund: float, setup):
+		if fund > Vehicle.cost:
 			for attempt in range(1, 10):
 				road = self.city.infrastructure.most_used_road()
 				if len(road.vehicles) == 0 or road.length / len(road.vehicles) > Vehicle.min_safe_dist:
@@ -128,12 +139,18 @@ class Transport:
 	def assign_random_goal(self, vehicle: 'Vehicle'):
 		vehicle.set_global_dst(self.city.infrastructure.sample_intersection(exclude=vehicle.local_src))
 
-	def jammed_proportion(self):
-		return len([vehicle for vehicle in self.vehicles if vehicle.state == Vehicle.FREAKING]) / len(
-			self.vehicles) if len(self.vehicles) > 0 else 0
+	def average_vehicle_speed(self):
+		if len(self.vehicles) > 0:
+			return sum(vehicle.vel for vehicle in self.vehicles) / len(self.vehicles)
+		return 0
 
-	def vehicle_cost_benefit_ratio(self):
-		return Vehicle.cost / (1 - self.jammed_proportion())
+	def average_vehicle_density_proportion(self):
+		if len(self.vehicles) > 0:
+			vehicle_roads = (vehicle.road for vehicle in self.vehicles)
+			road_density = (len(road.vehicles) / (road.length * road.breadth) for road in vehicle_roads)
+			density_to_max_density = sum(road_density) / (Vehicle.min_safe_dist * len(self.vehicles))
+			return density_to_max_density
+		return 0
 
 
 class Joint:
@@ -154,8 +171,58 @@ class Joint:
 		return str((self.a, self.b))
 
 
-class Infrastructure:
+class RoadExtensionNegotiator(DemandNegotiator):
+	def __init__(self, city: 'City') -> None:
+		super().__init__('Extension Demand', 10)
+		self.city = city
+
+	def setup(self, scenario):
+		self.city.life.update_closest_intersection_cache(list(self.city.infrastructure.intersections), scenario)
+
+	def compute_demand(self, scenario, setup):
+		sum_hotspot_deprivation = sum(hotspot.closest.distance for hotspot in self.city.life.hotspots)
+		sum_hotspot_coverage = sum(mag(hotspot.pos) for hotspot in self.city.life.hotspots) + .1
+		return min(sum_hotspot_deprivation / sum_hotspot_coverage, 1)
+
+	def fund(self, scenario, fund: float, setup):
+		mdh = self.city.life.most_deprived_hotspot(list(self.city.infrastructure.intersections), scenario)
+		if mdh is not None:
+			diff = (mdh.pos - mdh.closest.intersection)
+			diff_mag = mag(diff)
+			length_to_build = min(fund, diff_mag)
+			if fund > length_to_build:
+				self.city.infrastructure.extend_road(mdh.closest.intersection,
+													 mdh.closest.intersection + diff * length_to_build / diff_mag,
+													 1, True)
+				return length_to_build
+		return 0
+
+
+class RoadExpansionNegotiator(DemandNegotiator):
+	def __init__(self, city: 'City') -> None:
+		super().__init__('Expansion Demand')
+		self.city = city
+
+	def setup(self, scenario):
+		return self.city.infrastructure.most_used_road()
+
+	def compute_demand(self, scenario, mur: Road):
+		vehicles_density = len(mur.vehicles) / (mur.length * mur.breadth)
+		density_to_max_density = min(vehicles_density * Vehicle.min_safe_dist, 1)
+		return density_to_max_density
+
+	def fund(self, scenario, fund: float, mur):
+		expansion_cost = mur.expansion_cost()
+		if fund > expansion_cost:
+			mur.expand()
+			self.minimum_fund = mur.expansion_cost()
+			return expansion_cost
+		return 0
+
+
+class Infrastructure(DemandNegotiator, DemandJudge):
 	def __init__(self, city: 'City'):
+		super().__init__()
 		self.city = city
 		root = Intersection(0, 0)
 		self.nodes = set()  # type: Set[Node]
@@ -165,6 +232,9 @@ class Infrastructure:
 
 		self.router = Router()
 		self.router.add_intersection(root, {})
+
+		self.add_negotiator(RoadExtensionNegotiator(self.city))
+		self.add_negotiator(RoadExpansionNegotiator(self.city))
 
 		self.candidates = None
 		self.mdh = None
@@ -195,35 +265,15 @@ class Infrastructure:
 		max_arg = road_usages.argmax()
 		return roads[max_arg]
 
-	def road_cost_benefit_ratio(self, road):
-		return float(road.expansion_cost() / (500 * (road.usage + 0.1) / self.city.ticks))
+	def setup(self, scenario):
+		pass
 
-	def intersection_cost_benefit_ratio(self, hotspot: 'Hotspot'):
-		diff = (hotspot.pos - hotspot.closest.intersection)
-		diff_s = mag(diff)
-		if diff_s < 10:
-			return np.inf
-		return 20 / diff_s
+	def compute_demand(self, scenario, setup):
+		self.preside_negotiation(scenario)
+		return self.best_demand
 
-	def fund(self, fund: float):
-		mur = self.most_used_road()
-		mdh = self.city.life.most_deprived_hotspot(self.intersections)
-
-		if mdh is not None and self.intersection_cost_benefit_ratio(mdh) < self.road_cost_benefit_ratio(mur):
-			self.mdh = mdh
-			if fund > 10:
-				diff = (mdh.pos - mdh.closest.intersection)
-				diff_mag = mag(diff)
-				length_to_build = min(fund, diff_mag)
-				self.extend_road(Intersection(mdh.closest.intersection),
-								 mdh.closest.intersection + diff * length_to_build / diff_mag, 1, True)
-				return length_to_build
-		else:
-			expansion_cost = mur.expansion_cost()
-			if fund > expansion_cost:
-				mur.expand()
-				return expansion_cost
-		return 0
+	def fund(self, scenario, fund: float, setup):
+		return self.fund_best_negotiator(scenario, fund)
 
 	def sample_intersection(self, exclude: Intersection = None):
 		return random.sample(self.intersections.difference({exclude}), 1)[0]
@@ -233,8 +283,9 @@ class Infrastructure:
 
 
 class Vehicle:
+	max_speed = 2
 	cost = 40
-	min_safe_dist = 2
+	min_safe_dist = 4
 	CHILLING = 0
 	RACING = 5
 	FREAKING = 8

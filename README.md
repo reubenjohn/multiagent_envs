@@ -19,11 +19,9 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 4. Out of the box classical AI implementation for vehicles to respect road safety.
 
 **To Do**
-1. Have vehicles respect safe distance
-2. Have vehicle goal assignment be biased towards more popular hotspots.
-3. Mechanism to build roads to improve connectivity between popular hotspots
-4. Improve cost benefit analysis decisions between expanding roads, extending roads, introducing new vehicles and growing new hotspots.
-5. Have hotspots require funding to grow. With cost benefit ratio as a function of how many vehicles visit it.
+1. Have vehicle goal assignment be biased towards more popular hotspots.
+2. Mechanism to build roads to improve connectivity between popular hotspots
+3. Have hotspots require funding to grow. With fund demand as a function of how many vehicles visit it.
 
 `python3 -m multiagent_envs.city_drivers.main`
 

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from multiagent_envs.city_drivers.transport import Intersection
 from multiagent_envs.geometry import Point
+from multiagent_envs.negotiator import DemandNegotiator
 
 if TYPE_CHECKING:
 	from multiagent_envs.city_drivers.city import City
@@ -27,7 +28,7 @@ class Hotspot:
 
 	def update_closest_cache(self, intersections: List[Intersection], tick):
 		if tick == self.closest.tick:
-			return self.closest.intersection
+			return self.closest
 		self.closest.distances = [mag(self.pos - intersection) for intersection in intersections]
 		closest_intersection_index = int(np.argmin(self.closest.distances))
 		self.closest.intersection = intersections[closest_intersection_index]
@@ -35,8 +36,9 @@ class Hotspot:
 		return self.closest
 
 
-class Life:
+class Life(DemandNegotiator):
 	def __init__(self, city: 'City'):
+		super().__init__('Hotspot Demand', Hotspot.cost)
 		self.friction = 0.0
 		self.drag = 0.001
 		self.noise = 0.01
@@ -82,15 +84,18 @@ class Life:
 
 	def most_deprived_hotspot(self, intersections: List[Intersection], tick: int = None) -> Hotspot:
 		assert len(self.hotspots) > 0
-		inter_list = list(intersections)
-		self.update_closest_intersection_cache(inter_list, tick)
+		self.update_closest_intersection_cache(list(intersections), tick)
 		return self.hotspots[int(np.argmax([hotspot.closest.distance for hotspot in self.hotspots]))]
 
-	@property
 	def total_hotspot_speed(self):
 		return sum(mag(hotspot.vel) for hotspot in self.hotspots)
 
-	def fund(self, fund):
-		# return
-		if fund > Hotspot.cost and self.total_hotspot_speed < 1:
-			self.add_hotspot()
+	def setup(self, scenario):
+		return self.total_hotspot_speed() + .01
+
+	def compute_demand(self, scenario, total_hotspot_speed):
+		return min(1 / total_hotspot_speed, 1)
+
+	def fund(self, scenario, fund: float, setup):
+		self.add_hotspot()
+		return Hotspot.cost
