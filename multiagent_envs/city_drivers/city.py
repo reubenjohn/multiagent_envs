@@ -40,6 +40,20 @@ class City(Env2d):
 		cv2.circle(self.img, center, int(self.scale * np.sqrt(hotspot.mass)), (255 - speed, 0, speed), -1)
 		cv2.line(self.img, center, self.window_point(hotspot.pos + 10 * hotspot.force), (0, 255, 0))
 
+	def display_vehicle(self, vehicle):
+		x, y = self.window_point(
+			vehicle.local_src + vehicle.pos / vehicle.road.length * (vehicle.local_dst - vehicle.local_src))
+		if vehicle.state == Vehicle.CHILLING:
+			cv2.circle(self.img, (x, y), 2, (255, 0, 0), -1)
+		elif vehicle.state == Vehicle.RACING:
+			cv2.circle(self.img, (x, y), 2, (0, 255, 255), -1)
+		elif vehicle.state == Vehicle.FREAKING:
+			cv2.circle(self.img, (x, y), 4, (0, 0, 255), -1)
+		elif vehicle.state == Vehicle.BASKING_IN_GLORY:
+			cv2.circle(self.img, (x, y), 8, (0, 255, 0), -1)
+		else:
+			cv2.circle(self.img, (x, y), 8, (64, 64, 64), -1)
+
 	def display(self, wait=-1):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
 		self.hud('Ticks: %f' % self.ticks)
@@ -62,15 +76,7 @@ class City(Env2d):
 			overlay_transparent(self.img, self.intersection, x - 8, y - 8)
 
 		for vehicle in self.transport.vehicles:
-			x, y = self.window_point(
-				vehicle.local_src + vehicle.pos / vehicle.road.length * (vehicle.local_dst - vehicle.local_src))
-			# roi = self.img[x - 8:x + 8, y - 8:y + 8]
-			if vehicle.state == Vehicle.CHILLING:
-				cv2.circle(self.img, (x, y), 2, (255, 0, 0), -1)
-			elif vehicle.state == Vehicle.RACING:
-				cv2.circle(self.img, (x, y), 2, (0, 255, 255), -1)
-			elif vehicle.state == Vehicle.BASKING_IN_GLORY:
-				cv2.circle(self.img, (x, y), 8, (0, 255, 0), -1)
+			self.display_vehicle(vehicle)
 		# overlay_transparent(self.img, self.car, x - 8, y - 8)
 
 		for hotspot in self.life.hotspots:

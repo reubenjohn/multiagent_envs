@@ -221,9 +221,11 @@ class Infrastructure:
 
 
 class Vehicle:
-	cost = 10
+	cost = 1
+	min_safe_dist = 2
 	CHILLING = 0
 	RACING = 5
+	FREAKING = 8
 	BASKING_IN_GLORY = 10
 
 	def __init__(self, infra: Infrastructure, intersection: Intersection, road: Road, pos: float = None):
@@ -257,7 +259,6 @@ class Vehicle:
 					return True
 				else:
 					self.target_next_waypoint()
-		self.state = Vehicle.RACING
 		return False
 
 	def compute_local_dst(self):
@@ -270,6 +271,16 @@ class Vehicle:
 		self.road.vehicles.add(self)  # Help other vehicles find me
 
 	def control(self):
-		progress = self.pos / self.road.length
+		self.state = Vehicle.RACING
+		stop_ratio = self.pos / self.road.length
+		upcoming_vehicle_positions = [
+			other.pos for other in self.road.vehicles
+			if other != self and other.local_src == self.local_src and other.pos > self.pos
+		]
+		if len(upcoming_vehicle_positions) > 0:
+			upcoming_vehicle_stop_ratio = self.min_safe_dist / (min(upcoming_vehicle_positions) - self.pos)
+			if upcoming_vehicle_stop_ratio - stop_ratio > .2:
+				self.state = Vehicle.FREAKING
+			stop_ratio = max(stop_ratio, upcoming_vehicle_stop_ratio)
 		return max(self.road.max_vel / 10,
-				   self.road.max_vel * (1 - progress ** 2))
+				   self.road.max_vel * (1 - stop_ratio ** 2))
