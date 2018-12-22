@@ -33,7 +33,7 @@ def overlay_transparent(bg_img, img_to_overlay_t, x, y):
 	a3 = np.repeat(np.reshape(a / 255, a.shape + (1,)), 3, 2)
 
 	h, w, _ = overlay_color.shape
-	if x < 0 or y < 0 or x > w or y > h:
+	if x < 0 or y < 0 or x > len(bg_img[0]) or y > len(bg_img):
 		return
 	roi = bg_img[y:y + h, x:x + w]
 	if a3.shape != roi.shape:

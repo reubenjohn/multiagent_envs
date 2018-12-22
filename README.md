@@ -16,6 +16,7 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 1. Hotspots form as the city grows.
 2. Roads are built towards the most deprived hotspots.
 3. Vehicles navigate towards randomly assigned goals.
+4. Out of the box classical AI implementation for vehicles to respect road safety.
 
 **To Do**
 1. Have vehicles respect safe distance

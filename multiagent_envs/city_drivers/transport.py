@@ -243,6 +243,8 @@ class Vehicle:
 	def tick(self):
 		self.road.usage += 1
 		if self.global_dst is not None:
+			target = self.control()
+			self.vel += max(min(target - self.vel, 0.1), -0.1)
 			self.pos += self.vel
 			if self.pos > self.road.length:
 				self.pos -= self.road.length
@@ -266,4 +268,8 @@ class Vehicle:
 		self.road.vehicles.remove(self)
 		self.road = self.infra.roads[Joint(self.local_src, self.local_dst)]
 		self.road.vehicles.add(self)  # Help other vehicles find me
-		self.vel = self.road.max_vel
+
+	def control(self):
+		progress = self.pos / self.road.length
+		return max(self.road.max_vel / 10,
+				   self.road.max_vel * (1 - progress ** 2))
