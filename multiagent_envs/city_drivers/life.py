@@ -2,6 +2,7 @@ from typing import List
 from typing import TYPE_CHECKING
 
 from multiagent_envs.city_drivers.transport import Intersection
+from multiagent_envs.geometry import Point
 
 if TYPE_CHECKING:
 	from multiagent_envs.city_drivers.city import City

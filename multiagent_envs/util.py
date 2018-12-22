@@ -14,24 +14,6 @@ def sin(a: np.ndarray, b: np.ndarray):
 	return np.sqrt(1 - cos(a, b) ** 2)
 
 
-class Point(np.ndarray):
-	def __new__(cls, x_or_point, y=None):
-		obj = super().__new__(cls, (2,), np.float32)
-		if y is not None:
-			x_or_point = np.array([x_or_point, y], np.float32, copy=True)
-		np.copyto(obj, x_or_point)
-		return obj
-
-	def __hash__(self) -> int:
-		return hash(self.tobytes())
-
-	def __eq__(self, other):
-		return np.all(np.equal(self, other))
-
-	def __nq__(self, other):
-		return not self.__eq__(other)
-
-
 def expand_matrix(mat):
 	size_1 = len(mat)
 	size_0 = len(mat[0])

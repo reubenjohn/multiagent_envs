@@ -1,8 +1,9 @@
 import random
-from typing import TYPE_CHECKING, Set, Dict, Union, List
+from typing import TYPE_CHECKING, Set, Dict, List
 
 from multiagent_envs.const import X, Z
-from multiagent_envs.util import Point, mag, cos
+from multiagent_envs.geometry import Point, Node, Edge
+from multiagent_envs.util import mag, cos
 
 if TYPE_CHECKING:
 	from multiagent_envs.city_drivers.city import City
@@ -11,18 +12,8 @@ if TYPE_CHECKING:
 import numpy as np
 
 
-class Node(Point):
-	def __new__(cls, x_or_point, y=None):
-		return super().__new__(cls, x_or_point, y)
-
-
 class Intersection(Point):
 	pass
-
-
-class Edge:
-	def __init__(self, a: Union[Node, Intersection], b: Union[Node, Intersection]):
-		self.a, self.b = a, b
 
 
 class Road(Edge):
@@ -36,6 +27,7 @@ class Road(Edge):
 		self.network = network
 		self.usage = 0
 		self.setup_edges(a, b, n_lanes, two_way)
+		self.vehicles = set()  # type: Set[Vehicle]
 
 	@property
 	def length(self):
@@ -115,7 +107,7 @@ class Transport:
 
 	def add_vehicle(self, road: Road):
 		if not any(vehicle.road == road for vehicle in self.vehicles):
-			new_vehicle = Vehicle(road.a, road, self.city.infrastructure)
+			new_vehicle = Vehicle(self.city.infrastructure, road.a, road)
 			self.assign_random_goal(new_vehicle)
 			self.vehicles.add(new_vehicle)
 			return new_vehicle
@@ -214,7 +206,8 @@ class Infrastructure:
 				diff = (mdh.pos - mdh.closest.intersection)
 				diff_mag = mag(diff)
 				length_to_build = min(fund, diff_mag)
-				self.extend_road(Intersection(mdh.closest.intersection), mdh.closest.intersection + diff * length_to_build / diff_mag, 1, True)
+				self.extend_road(Intersection(mdh.closest.intersection),
+								 mdh.closest.intersection + diff * length_to_build / diff_mag, 1, True)
 				return length_to_build
 		else:
 			expansion_cost = mur.expansion_cost()
@@ -233,13 +226,14 @@ class Vehicle:
 	RACING = 5
 	BASKING_IN_GLORY = 10
 
-	def __init__(self, intersection: Intersection, road: Road, infra: Infrastructure):
-		self.global_dst = None
+	def __init__(self, infra: Infrastructure, intersection: Intersection, road: Road, pos: float = None):
 		self.infra = infra
+		self.global_dst = None
 		self.local_src = self.local_dst = intersection
 		self.road = road  # type: Road
-		self.pos = road.length / 2  # type: float
+		self.road.vehicles.add(self)
 		self.vel = 0.0  # type: float
+		self.pos = road.length / 2 if pos is None else pos  # type: float
 		self.state = Vehicle.CHILLING
 
 	def set_global_dst(self, global_dst: Intersection):
@@ -269,5 +263,7 @@ class Vehicle:
 
 	def target_next_waypoint(self):
 		self.local_src, self.local_dst = self.local_dst, self.compute_local_dst()
+		self.road.vehicles.remove(self)
 		self.road = self.infra.roads[Joint(self.local_src, self.local_dst)]
+		self.road.vehicles.add(self)  # Help other vehicles find me
 		self.vel = self.road.max_vel
