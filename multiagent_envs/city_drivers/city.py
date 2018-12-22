@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 
 from multiagent_envs.city_drivers.life import Life, Hotspot
-from multiagent_envs.city_drivers.transport import Infrastructure, Transport, Road, Vehicle
+from multiagent_envs.city_drivers.transport.infrastructure import Infrastructure, Road, Vehicle
+from multiagent_envs.city_drivers.transport.transport import Transport
 from multiagent_envs.const import Y, X
 from multiagent_envs.geometry import Edge
 from multiagent_envs.negotiator import DemandJudge

@@ -1,7 +1,7 @@
 from typing import List
 from typing import TYPE_CHECKING
 
-from multiagent_envs.city_drivers.transport import Intersection
+from multiagent_envs.city_drivers.transport.common import Intersection
 from multiagent_envs.geometry import Point
 from multiagent_envs.negotiator import DemandNegotiator
 
