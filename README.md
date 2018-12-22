@@ -17,4 +17,6 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 2. Roads are built towards the most deprived hotspots.
 3. Vehicles navigate towards randomly assigned goals.
 
+`python3 -m multiagent_envs.city_drivers.main`
+
 ![City Drivers](multiagent_envs/city_drivers/screenshots/v0.1.0.png "City Drivers v0.1.0")
