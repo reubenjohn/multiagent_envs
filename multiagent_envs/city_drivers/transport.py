@@ -79,25 +79,25 @@ class Waypoint:
 		self.dist = remaining_dist
 
 
-class Router(object):
-	def __init__(self):
-		self.spts = dict()  # type: Dict[Intersection, Dict[Intersection, Waypoint]]
+class Router(dict):
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
 
 	def add_intersection(self, intersection: Intersection, adjs: Dict[Intersection, float]):
 		intersection_map = {intersection: Waypoint(intersection, 0)}  # type: Dict[Intersection, Waypoint]
-		for target in self.spts:
+		for target in self:
 			best_spt = Waypoint(next(adjs.__iter__()), 100000)
 			for (adj, dist) in adjs.items():
-				candidate_dist = dist + self.spts[adj][target].dist
+				candidate_dist = dist + self[adj][target].dist
 				if candidate_dist < best_spt.dist:
 					best_spt.dist = candidate_dist
 					best_spt.next_step = adj
 			intersection_map[target] = best_spt
 			if target in adjs:
-				self.spts[target][intersection] = Waypoint(intersection, best_spt.dist)
+				self[target][intersection] = Waypoint(intersection, best_spt.dist)
 			else:
-				self.spts[target][intersection] = self.spts[target][best_spt.next_step]
-		self.spts[intersection] = intersection_map
+				self[target][intersection] = self[target][best_spt.next_step]
+		self[intersection] = intersection_map
 
 
 class Transport:
@@ -106,19 +106,18 @@ class Transport:
 		self.vehicles = set()  # type: Set[Vehicle]
 
 	def add_vehicle(self, road: Road):
-		if not any(vehicle.road == road for vehicle in self.vehicles):
-			new_vehicle = Vehicle(self.city.infrastructure, road.a, road)
-			self.assign_random_goal(new_vehicle)
-			self.vehicles.add(new_vehicle)
-			return new_vehicle
-		return None
+		new_vehicle = Vehicle(self.city.infrastructure, road.a, road)
+		self.assign_random_goal(new_vehicle)
+		self.vehicles.add(new_vehicle)
+		return new_vehicle
 
 	def fund(self, fund):
-		if fund > Vehicle.cost:
-			if self.add_vehicle(self.city.infrastructure.most_used_road()) is not None:
-				return Vehicle.cost
-			else:
-				return 0
+		if fund > Vehicle.cost and self.vehicle_cost_benefit_ratio():
+			for attempt in range(1, 10):
+				road = self.city.infrastructure.most_used_road()
+				if len(road.vehicles) == 0 or road.length / len(road.vehicles) > Vehicle.min_safe_dist:
+					self.add_vehicle(self.city.infrastructure.most_used_road())
+					return Vehicle.cost
 		return 0
 
 	def tick(self):
@@ -128,6 +127,13 @@ class Transport:
 
 	def assign_random_goal(self, vehicle: 'Vehicle'):
 		vehicle.set_global_dst(self.city.infrastructure.sample_intersection(exclude=vehicle.local_src))
+
+	def jammed_proportion(self):
+		return len([vehicle for vehicle in self.vehicles if vehicle.state == Vehicle.FREAKING]) / len(
+			self.vehicles) if len(self.vehicles) > 0 else 0
+
+	def vehicle_cost_benefit_ratio(self):
+		return Vehicle.cost / (1 - self.jammed_proportion())
 
 
 class Joint:
@@ -143,6 +149,9 @@ class Joint:
 			return self.a == o.a and self.b == o.b or self.a == o.b and self.b == o.a
 		else:
 			return False
+
+	def __str__(self):
+		return str((self.a, self.b))
 
 
 class Infrastructure:
@@ -219,9 +228,12 @@ class Infrastructure:
 	def sample_intersection(self, exclude: Intersection = None):
 		return random.sample(self.intersections.difference({exclude}), 1)[0]
 
+	def sample_road(self):
+		return random.sample(list(self.roads.values()), 1)[0]
+
 
 class Vehicle:
-	cost = 1
+	cost = 40
 	min_safe_dist = 2
 	CHILLING = 0
 	RACING = 5
@@ -262,7 +274,7 @@ class Vehicle:
 		return False
 
 	def compute_local_dst(self):
-		return self.infra.router.spts[self.local_dst][self.global_dst].next_step
+		return self.infra.router[self.local_dst][self.global_dst].next_step
 
 	def target_next_waypoint(self):
 		self.local_src, self.local_dst = self.local_dst, self.compute_local_dst()

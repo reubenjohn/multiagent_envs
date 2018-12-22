@@ -18,6 +18,8 @@ class ClosestIntersectionCache:
 
 
 class Hotspot:
+	cost = 100
+
 	def __init__(self, pos: Point, vel: Point, mass=.01):
 		self.pos, self.vel, self.mass = pos, vel, mass
 		self.force = 0
@@ -46,15 +48,21 @@ class Life:
 	def add_hotspot(self, spot: Point = None):
 		if spot is None:
 			spot = Point(self.city.infrastructure.most_used_road().a)
-		self.hotspots.append(Hotspot(spot, Point(0, 0)))
+		hotspot = Hotspot(spot, Point(0, 0))
+		self.hotspots.append(hotspot)
+		self.update_closest_intersection_cache()
+		self.dissipate([hotspot])
 
-	def dissipate(self):
-		for a_i, a in enumerate(self.hotspots):
+	def dissipate(self, hotspots: List[Hotspot] = None):
+		hotspots = hotspots or self.hotspots
+		for a_i, a in enumerate(hotspots):
 			a.force *= 0
 			for b_i, b in enumerate(self.hotspots):
 				if a_i != b_i:
 					diff = a.pos - b.pos
-					a.force += a.mass * b.mass * diff / mag(diff) ** 3
+					mag_diff = mag(diff)
+					if mag_diff > 0.01:
+						a.force += a.mass * b.mass * diff / mag(diff) ** 3
 			a.vel += (a.force + (np.random.random_sample(2) - .5) * self.noise) / a.mass
 			a_speed = mag(a.vel)
 			a.vel *= max(0, (1 - self.friction - self.drag * a_speed)) * a.mass / (a.mass + self.growth)
@@ -64,9 +72,11 @@ class Life:
 	def tick(self):
 		self.dissipate()
 
-	def update_closest_intersection_cache(self, intersections: List[Intersection], tick: int = None):
+	def update_closest_intersection_cache(self, intersections: List[Intersection] = None, tick: int = None):
 		if tick is None:
 			tick = self.city.ticks
+		if intersections is None:
+			intersections = list(self.city.infrastructure.intersections)
 		for hotspot in self.hotspots:
 			hotspot.update_closest_cache(intersections, tick)
 
@@ -75,3 +85,12 @@ class Life:
 		inter_list = list(intersections)
 		self.update_closest_intersection_cache(inter_list, tick)
 		return self.hotspots[int(np.argmax([hotspot.closest.distance for hotspot in self.hotspots]))]
+
+	@property
+	def total_hotspot_speed(self):
+		return sum(mag(hotspot.vel) for hotspot in self.hotspots)
+
+	def fund(self, fund):
+		# return
+		if fund > Hotspot.cost and self.total_hotspot_speed < 1:
+			self.add_hotspot()

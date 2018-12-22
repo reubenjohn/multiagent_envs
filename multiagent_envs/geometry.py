@@ -16,7 +16,7 @@ class Point(np.ndarray):
 		return obj
 
 	def __hash__(self) -> int:
-		return hash(self.tobytes())
+		return hash(tuple(self))
 
 	def __eq__(self, other):
 		return np.all(np.equal(self, other))

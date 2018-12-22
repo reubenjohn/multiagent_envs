@@ -48,7 +48,7 @@ class City(Env2d):
 		elif vehicle.state == Vehicle.RACING:
 			cv2.circle(self.img, (x, y), 2, (0, 255, 255), -1)
 		elif vehicle.state == Vehicle.FREAKING:
-			cv2.circle(self.img, (x, y), 4, (0, 0, 255), -1)
+			cv2.circle(self.img, (x, y), 8, (0, 0, 255), -1)
 		elif vehicle.state == Vehicle.BASKING_IN_GLORY:
 			cv2.circle(self.img, (x, y), 8, (0, 255, 0), -1)
 		else:
@@ -56,16 +56,6 @@ class City(Env2d):
 
 	def display(self, wait=-1):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
-		self.hud('Ticks: %f' % self.ticks)
-		self.hud('Scale: %f' % self.scale)
-		self.hud('Fund: %f' % self._fund)
-		self.hud('Vehicles: %d' % len(self.transport.vehicles))
-		self.hud('Hotspots: %d' % len(self.life.hotspots))
-		self.hud('Intersections: %d' % len(self.infrastructure.intersections))
-		self.hud('MUR CBR: %f' % self.infrastructure.road_cost_benefit_ratio(self.infrastructure.most_used_road()))
-		if self.infrastructure.mdh is not None:
-			self.hud('HIC CBR: %f' % self.infrastructure.intersection_cost_benefit_ratio(self.infrastructure.mdh))
-		# self.hud('Vehicles: ' + str([(vehicle.pos, vehicle.vel) for vehicle in self.transport.vehicles]))
 
 		for road in self.infrastructure.roads.values():
 			self.display_road(road)
@@ -89,6 +79,17 @@ class City(Env2d):
 			cv2.putText(self.img, str(hotspot.closest.distance), self.window_point((hp + ci) / 2),
 						cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
 
+		self.hud('Ticks: %f' % self.ticks)
+		self.hud('Scale: %f' % self.scale)
+		self.hud('Fund: %f' % self._fund)
+		self.hud('Vehicles: %d' % len(self.transport.vehicles))
+		self.hud('Hotspots: %d' % len(self.life.hotspots))
+		self.hud('Intersections: %d' % len(self.infrastructure.intersections))
+		self.hud('Total hotspot speed: %f' % self.life.total_hotspot_speed)
+		self.hud('Vehicle CBR: %f' % self.transport.vehicle_cost_benefit_ratio())
+		self.hud('MUR CBR: %f' % self.infrastructure.road_cost_benefit_ratio(self.infrastructure.most_used_road()))
+		if self.infrastructure.mdh is not None:
+			self.hud('HIC CBR: %f' % self.infrastructure.intersection_cost_benefit_ratio(self.infrastructure.mdh))
 		super().display()
 
 	def handle_input(self):
@@ -110,16 +111,14 @@ class City(Env2d):
 			print(key)
 
 	def tick(self):
-		self.ticks += 1
 		if self.ticks % 10 == 0:
-			if self.infrastructure.mdh is None or self.infrastructure.intersection_cost_benefit_ratio(
-					self.infrastructure.mdh) > .75:
-				self.life.add_hotspot()
 			self.fund(10)
 		self.transport.tick()
 		self.life.tick()
+		self.ticks += 1
 
 	def fund(self, fund: int):
 		self._fund += fund
+		self.life.fund(self._fund)
 		self._fund -= self.transport.fund(self._fund)
 		self._fund -= self.infrastructure.fund(self._fund)
