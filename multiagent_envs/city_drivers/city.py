@@ -93,6 +93,7 @@ class City(Env2d, DemandJudge):
 						cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
 
 		self.hud('Ticks: %f' % self.ticks)
+		self.hud('Ticks per frame: %f' % self.display_interval)
 		self.hud('Scale: %f' % self.scale)
 		self.hud('Fund: %f' % self._fund)
 		self.hud('Vehicles: %d' % len(self.transport.vehicles))
@@ -106,11 +107,11 @@ class City(Env2d, DemandJudge):
 		if key == escape:
 			return True
 		elif key in {w, a, s, d}:
-			self.focus += 10 * {w: Y, a: -X, s: -Y, d: X}[key] / self.scale
+			self.focus += 10 * {w: Y, a: -X, s: -Y, d: X}[key] / self.scale * 4
 		elif key in {plus, minus}:
-			self.scale = self.scale * {plus: 1.2, minus: 0.8}[key]
+			self.scale = self.scale * {plus: 1.4, minus: 0.6}[key]
 		elif key in {faster, slower}:
-			self.display_interval = max(self.display_interval + {faster: 1, slower: -1}[key], 1)
+			self.display_interval = max(self.display_interval * {faster: 1.5, slower: 0.5}[key], 1)
 		elif key == space:
 			self.paused = not self.paused
 		elif key == enter:

@@ -71,9 +71,9 @@ class Env2d(Window):
 	def iterate(self):
 		if not self.paused:
 			self.tick()
-		if self.ticks % self.display_interval == 0:
+		if self.ticks % int(self.display_interval) == 0:
 			self.display()
-		return self.handle_input()
+			return self.handle_input()
 
 	def run(self):
 		while True:
