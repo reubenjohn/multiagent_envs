@@ -46,9 +46,16 @@ class Window:
 		e = self.window_transform(e)
 		cv2.line(self.img, tuple(e.a.astype(np.int)), tuple(e.b.astype(np.int)), color, thickness)
 
-	def hud(self, text: str):
+	def hud(self, *parts):
 		self.frame_hud_count += 1
-		cv2.putText(self.img, text, (0, self.frame_hud_count * 20), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
+		accumulator = 0
+		for part in parts:
+			if isinstance(part, tuple):
+				part, color = part
+			else:
+				color = (0, 0, 0)
+			cv2.putText(self.img, part, (accumulator, self.frame_hud_count * 20), cv2.FONT_HERSHEY_PLAIN, 1, color)
+			accumulator += 9 * len(part)
 
 	def display(self):
 		cv2.imshow('image', self.img)

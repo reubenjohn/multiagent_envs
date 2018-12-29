@@ -32,6 +32,11 @@ class City(Env2d, DemandJudge):
 		self.car = cv2.imread('pinpoint.png', cv2.IMREAD_UNCHANGED)
 		self.car = cv2.resize(self.car, tuple((np.array(self.car.shape[:2]) / 16).astype(np.int)))
 
+	def demand_hud(self, negotiator_name: str, demand: float, min_demand: float, max_demand: float):
+		relative_demand = (demand - min_demand) / (max_demand - min_demand)
+		color = (.6 - .6 * float(relative_demand), 1 - 1 * float(relative_demand), .6 + .4 * float(relative_demand))
+		self.hud('%s: ' % negotiator_name, ('%.4f' % demand, color))
+
 	def display_road(self, road: Road):
 		self.display_edge(road, [0, 0, 0], len(road.edges) * 2)
 		if road.two_way:
@@ -64,18 +69,21 @@ class City(Env2d, DemandJudge):
 		cv2.circle(self.img, goal, 4, (0, 255, 0), -1)
 
 	def display_demands(self, judge: DemandJudge):
+		zeroed_demands = [demand if demand is not None else 0 for demand in judge.demands]
+		max_demand, min_demand = max(zeroed_demands), min(zeroed_demands)
+		max_demand = 1 if max_demand == 0 else max_demand
 		for negotiator, demand in zip(judge.negotiators, judge.demands):
 			if demand is not None:
 				if isinstance(negotiator, InterHotspotConnectivityNegotiator):
 					if negotiator.src is not None:
 						self.display_edge(Edge(negotiator.src, negotiator.dst), (0, 255, 255), 2)
-					self.hud('%s: %f' % (negotiator.name, demand))
+					self.demand_hud(negotiator.name, demand, min_demand, max_demand)
 				elif not isinstance(negotiator, RecursiveDemandJudge):
-					self.hud('%s: %f' % (negotiator.name, demand))
+					self.demand_hud(negotiator.name, demand, min_demand, max_demand)
 				elif isinstance(negotiator, DemandJudge):
 					self.display_demands(negotiator)
 				else:
-					raise RuntimeError('Unknown negotiator ' + negotiator)
+					raise RuntimeError('Unknown negotiator type' + type(negotiator).__name__)
 
 	def display(self, wait=-1):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
