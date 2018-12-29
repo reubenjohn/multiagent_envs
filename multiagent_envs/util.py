@@ -3,7 +3,11 @@ import numpy as np
 
 
 def mag(a: np.ndarray):
-	return np.sum(np.sqrt(a ** 2))
+	return np.sqrt(np.sum(a ** 2))
+
+
+def unit(a: np.ndarray):
+	return a / mag(a)
 
 
 def cos(a: np.ndarray, b: np.ndarray):

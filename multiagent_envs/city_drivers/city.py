@@ -1,12 +1,12 @@
 import cv2
 import numpy as np
 
-from multiagent_envs.city_drivers.life import Life, Hotspot
+from multiagent_envs.city_drivers.life import Life, Hotspot, InterHotspotConnectivityNegotiator
 from multiagent_envs.city_drivers.transport.infrastructure import Infrastructure, Road, Vehicle
 from multiagent_envs.city_drivers.transport.transport import Transport
 from multiagent_envs.const import Y, X
 from multiagent_envs.geometry import Edge
-from multiagent_envs.negotiator import DemandJudge
+from multiagent_envs.negotiator import DemandJudge, RecursiveDemandJudge
 from multiagent_envs.ui import Env2d
 from multiagent_envs.ui import escape, w, a, s, d, plus, minus, faster, slower, space, enter
 from multiagent_envs.util import overlay_transparent, mag
@@ -56,16 +56,26 @@ class City(Env2d, DemandJudge):
 		elif vehicle.state == Vehicle.FREAKING:
 			cv2.circle(self.img, (x, y), 8, (0, 0, 255), -1)
 		elif vehicle.state == Vehicle.BASKING_IN_GLORY:
-			cv2.circle(self.img, (x, y), 8, (0, 255, 0), -1)
+			cv2.circle(self.img, (x, y), 16, (0, 255, 0), -1)
 		else:
 			cv2.circle(self.img, (x, y), 8, (64, 64, 64), -1)
+
+		goal = self.window_point(vehicle.global_dst)
+		cv2.circle(self.img, goal, 4, (0, 255, 0), -1)
 
 	def display_demands(self, judge: DemandJudge):
 		for negotiator, demand in zip(judge.negotiators, judge.demands):
 			if demand is not None:
-				self.hud('%s: %f' % (negotiator.name, demand))
-				if isinstance(negotiator, DemandJudge):
+				if isinstance(negotiator, InterHotspotConnectivityNegotiator):
+					if negotiator.src is not None:
+						self.display_edge(Edge(negotiator.src, negotiator.dst), (0, 255, 255), 2)
+					self.hud('%s: %f' % (negotiator.name, demand))
+				elif not isinstance(negotiator, RecursiveDemandJudge):
+					self.hud('%s: %f' % (negotiator.name, demand))
+				elif isinstance(negotiator, DemandJudge):
 					self.display_demands(negotiator)
+				else:
+					raise RuntimeError('Unknown negotiator ' + negotiator)
 
 	def display(self, wait=-1):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
@@ -75,21 +85,19 @@ class City(Env2d, DemandJudge):
 
 		for intersection in self.infrastructure.intersections:
 			x, y = self.window_point(intersection)
-			# roi = self.img[x - 8:x + 8, y - 8:y + 8]
 			overlay_transparent(self.img, self.intersection, x - 8, y - 8)
 
 		for vehicle in self.transport.vehicles:
 			self.display_vehicle(vehicle)
-		# overlay_transparent(self.img, self.car, x - 8, y - 8)
 
 		for hotspot in self.life.hotspots:
 			self.display_hotspot(hotspot)
 
 		for hotspot in self.life.hotspots:
 			hp = hotspot.pos
-			ci = hotspot.closest.intersection
+			ci = hotspot.closest_intersection.obj
 			self.display_edge(Edge(hp, ci), (0 if hotspot == self.infrastructure.mdh else 255, 0, 255))
-			cv2.putText(self.img, str(hotspot.closest.distance), self.window_point((hp + ci) / 2),
+			cv2.putText(self.img, str(hotspot.closest_intersection.separation), self.window_point((hp + ci) / 2),
 						cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
 
 		self.hud('Ticks: %f' % self.ticks)

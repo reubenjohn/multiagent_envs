@@ -12,11 +12,12 @@ from multiagent_envs.city_drivers.transport.driver import Router
 from multiagent_envs.city_drivers.transport.transport import Vehicle
 from multiagent_envs.const import X, Z
 from multiagent_envs.geometry import Edge, Node
-from multiagent_envs.negotiator import DemandNegotiator, DemandJudge
+from multiagent_envs.negotiator import DemandNegotiator, RecursiveDemandJudge
 from multiagent_envs.util import mag, cos
 
 
 class Road(Edge):
+	min_length = 10
 	MAX_LANE_VEL = 0.5
 
 	def __init__(self, network: 'Infrastructure', a: Intersection, b: Intersection, n_lanes: int = 1,
@@ -28,6 +29,8 @@ class Road(Edge):
 		self.usage = 0
 		self.setup_edges(a, b, n_lanes, two_way)
 		self.vehicles = set()  # type: Set[Vehicle]
+
+		assert self.length != 0
 
 	@property
 	def length(self):
@@ -83,24 +86,23 @@ class RoadExtensionNegotiator(DemandNegotiator):
 		self.city = city
 
 	def setup(self, scenario):
-		self.city.life.update_closest_intersection_cache(list(self.city.infrastructure.intersections), scenario)
+		self.city.life.cache_closest_intersection(list(self.city.infrastructure.intersections), scenario)
 
 	def compute_demand(self, scenario, setup):
-		sum_hotspot_deprivation = sum(hotspot.closest.distance for hotspot in self.city.life.hotspots)
+		sum_hotspot_deprivation = sum(hotspot.closest_intersection.separation for hotspot in self.city.life.hotspots)
 		sum_hotspot_coverage = sum(mag(hotspot.pos) for hotspot in self.city.life.hotspots) + .1
 		return min(sum_hotspot_deprivation / sum_hotspot_coverage, 1)
 
 	def fund(self, scenario, fund: float, setup):
 		mdh = self.city.life.most_deprived_hotspot(list(self.city.infrastructure.intersections), scenario)
 		if mdh is not None:
-			diff = (mdh.pos - mdh.closest.intersection)
+			diff = (mdh.pos - mdh.closest_intersection.obj)
 			diff_mag = mag(diff)
 			length_to_build = min(fund, diff_mag)
-			if fund > length_to_build:
-				self.city.infrastructure.extend_road(mdh.closest.intersection,
-													 mdh.closest.intersection + diff * length_to_build / diff_mag,
-													 1, True)
-				return length_to_build
+			self.city.infrastructure.extend_road(mdh.closest_intersection.obj,
+												 mdh.closest_intersection.obj + diff * length_to_build / diff_mag,
+												 1, True)
+			return length_to_build
 		return 0
 
 
@@ -117,7 +119,7 @@ class RoadExpansionNegotiator(DemandNegotiator):
 		density_to_max_density = min(vehicles_density * Vehicle.min_safe_dist, 1)
 		return density_to_max_density
 
-	def fund(self, scenario, fund: float, mur):
+	def fund(self, scenario, fund: float, mur: Road):
 		expansion_cost = mur.expansion_cost()
 		if fund > expansion_cost:
 			mur.expand()
@@ -126,7 +128,7 @@ class RoadExpansionNegotiator(DemandNegotiator):
 		return 0
 
 
-class Infrastructure(DemandNegotiator, DemandJudge):
+class Infrastructure(RecursiveDemandJudge):
 	def __init__(self, city: 'City'):
 		super().__init__()
 		self.city = city
@@ -151,11 +153,19 @@ class Infrastructure(DemandNegotiator, DemandJudge):
 		assert src in self.intersections and dst not in self.intersections
 
 		self.intersections.add(dst)
+
+		road = Road(self, src, dst, n_lanes, two_way)
+		self.roads[Joint(src, dst)] = road
+
 		self.router.add_intersection(dst, {src: mag(src - dst)})
 
-		if src not in self.roads:
-			self.roads[Joint(src, dst)] = dict()  # type: Dict[Intersection, Road]
-		self.roads[Joint(src, dst)] = Road(self, src, dst, n_lanes, two_way)
+	def connect_intersections(self, src: Intersection, dst: Intersection, n_lanes, two_way: bool = True):
+		assert src in self.intersections and dst in self.intersections
+
+		road = Road(self, src, dst, n_lanes, two_way)
+		self.roads[Joint(src, dst)] = road
+
+		self.router.connect_intersections(src, dst, self.intersections)
 
 	def to_node(self, intersection: Intersection):
 		return self.node(Node(intersection))
@@ -170,16 +180,6 @@ class Infrastructure(DemandNegotiator, DemandJudge):
 		road_usages = np.array([road.usage for road in roads])
 		max_arg = road_usages.argmax()
 		return roads[max_arg]
-
-	def setup(self, scenario):
-		pass
-
-	def compute_demand(self, scenario, setup):
-		self.preside_negotiation(scenario)
-		return self.best_demand
-
-	def fund(self, scenario, fund: float, setup):
-		return self.fund_best_negotiator(scenario, fund)
 
 	def sample_intersection(self, exclude: Intersection = None):
 		return random.sample(self.intersections.difference({exclude}), 1)[0]

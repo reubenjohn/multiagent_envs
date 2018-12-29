@@ -4,7 +4,7 @@ from typing import Union
 import numpy as np
 
 if TYPE_CHECKING:
-	from multiagent_envs.city_drivers.transport import Intersection
+	from multiagent_envs.city_drivers.transport.common import Intersection
 
 
 class Point(np.ndarray):
@@ -21,7 +21,7 @@ class Point(np.ndarray):
 	def __eq__(self, other):
 		return np.all(np.equal(self, other))
 
-	def __nq__(self, other):
+	def __ne__(self, other):
 		return not self.__eq__(other)
 
 

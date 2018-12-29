@@ -68,7 +68,7 @@ class Vehicle:
 
 	def __init__(self, infra: 'Infrastructure', intersection: Intersection, road: 'Road', pos: float = None):
 		self.infra = infra
-		self.global_dst = None
+		self.global_dst = None  # type: Intersection
 		self.local_src = self.local_dst = intersection
 		self.road = road  # type: Road
 		self.road.vehicles.add(self)

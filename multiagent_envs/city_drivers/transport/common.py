@@ -19,5 +19,8 @@ class Joint:
 		else:
 			return False
 
+	def __nq__(self, o: object) -> bool:
+		return not self.__eq__(o)
+
 	def __str__(self):
 		return str((self.a, self.b))

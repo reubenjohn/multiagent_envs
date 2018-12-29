@@ -37,6 +37,7 @@ class DemandJudge:
 		self.demands = []
 		self.best_index = None
 		self.setup_cache = SetupCache(None, [])
+		super().__init__()
 
 	def add_negotiator(self, negotiator: DemandNegotiator) -> 'DemandJudge':
 		self.negotiators.append(negotiator)
@@ -55,9 +56,25 @@ class DemandJudge:
 			self.best_index = int(np.argmax(self.demands))
 			self.best_demand = self.demands[self.best_index]
 			self.best_negotiator = self.negotiators[self.best_index]
+			self.setup_cache.scenario = scenario
 
 	def fund_best_negotiator(self, scenario, fund: float):
 		self.preside_negotiation(scenario)
 		if fund > self.best_negotiator.minimum_fund:
 			return self.best_negotiator.fund(scenario, fund, self.setup_cache.cache[self.best_index])
 		return 0
+
+
+class RecursiveDemandJudge(DemandNegotiator, DemandJudge):
+	def __init__(self, name: str = None, minimum_fund: float = 0):
+		super().__init__(name, minimum_fund)
+
+	def setup(self, scenario):
+		pass
+
+	def compute_demand(self, scenario, setup):
+		self.preside_negotiation(scenario)
+		return self.best_demand
+
+	def fund(self, scenario, fund: float, setup):
+		return self.fund_best_negotiator(scenario, fund)
