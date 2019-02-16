@@ -24,6 +24,10 @@ class Point(np.ndarray):
 	def __ne__(self, other):
 		return not self.__eq__(other)
 
+	@classmethod
+	def random(cls):
+		return np.random.random_sample(2) - .5
+
 
 class Node(Point):
 	def __new__(cls, x_or_point, y=None):

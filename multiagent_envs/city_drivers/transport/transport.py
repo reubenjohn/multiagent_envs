@@ -77,6 +77,7 @@ class Vehicle:
 		self.state = Vehicle.CHILLING
 
 	def set_global_dst(self, global_dst: Intersection):
+		global_dst.visits += 1
 		self.global_dst = global_dst
 		self.target_next_waypoint()
 

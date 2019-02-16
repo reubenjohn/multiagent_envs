@@ -4,17 +4,16 @@ import numpy as np
 from multiagent_envs.city_drivers.life import Life, Hotspot, InterHotspotConnectivityNegotiator
 from multiagent_envs.city_drivers.transport.infrastructure import Infrastructure, Road, Vehicle
 from multiagent_envs.city_drivers.transport.transport import Transport
-from multiagent_envs.const import Y, X
 from multiagent_envs.geometry import Edge
 from multiagent_envs.negotiator import DemandJudge, RecursiveDemandJudge
 from multiagent_envs.ui import Env2d
-from multiagent_envs.ui import escape, w, a, s, d, plus, minus, faster, slower, space, enter
 from multiagent_envs.util import overlay_transparent, mag
 
 
 class City(Env2d, DemandJudge):
 	def __init__(self):
 		super().__init__()
+		self.display_interval = 1
 		self._fund = 300
 
 		self.infrastructure = Infrastructure(self)
@@ -46,10 +45,17 @@ class City(Env2d, DemandJudge):
 				self.display_edge(edge, [255, 128, 0], 1)
 
 	def display_hotspot(self, hotspot: Hotspot):
-		center = self.window_point(hotspot.pos)
+		hp = hotspot.pos
+
+		center = self.window_point(hp)
 		speed = int(255 * min(mag(hotspot.vel), 10) / 10)
 		cv2.circle(self.img, center, int(self.scale * np.sqrt(hotspot.mass)), (255 - speed, 0, speed), -1)
-		cv2.line(self.img, center, self.window_point(hotspot.pos + 10 * hotspot.force), (0, 255, 0))
+		cv2.line(self.img, center, self.window_point(hp + 10 * hotspot.force), (0, 255, 0))
+
+		ci = hotspot.closest_intersection.obj
+		# cv2.putText(self.img, str(hotspot.closest_intersection.separation), self.window_point((hp + ci) / 2),
+		# 			cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
+		self.display_edge(Edge(hp, ci), (255, 0, 255))
 
 	def display_vehicle(self, vehicle):
 		x, y = self.window_point(
@@ -101,13 +107,6 @@ class City(Env2d, DemandJudge):
 		for hotspot in self.life.hotspots:
 			self.display_hotspot(hotspot)
 
-		for hotspot in self.life.hotspots:
-			hp = hotspot.pos
-			ci = hotspot.closest_intersection.obj
-			self.display_edge(Edge(hp, ci), (0 if hotspot == self.infrastructure.mdh else 255, 0, 255))
-			cv2.putText(self.img, str(hotspot.closest_intersection.separation), self.window_point((hp + ci) / 2),
-						cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0))
-
 		self.hud('Ticks: %f' % self.ticks)
 		self.hud('Ticks per frame: %f' % self.display_interval)
 		self.hud('Scale: %f' % self.scale)
@@ -115,25 +114,14 @@ class City(Env2d, DemandJudge):
 		self.hud('Vehicles: %d' % len(self.transport.vehicles))
 		self.hud('Hotspots: %d' % len(self.life.hotspots))
 		self.hud('Intersections: %d' % len(self.infrastructure.intersections))
+		self.hud('___')
 		self.display_demands(self)
 		super().display()
 
-	def handle_input(self):
-		key = cv2.waitKey(0 if self.paused else 1)
-		if key == escape:
+	def handle_input(self, key: int):
+		if super().handle_input(key):
 			return True
-		elif key in {w, a, s, d}:
-			self.focus += 10 * {w: Y, a: -X, s: -Y, d: X}[key] / self.scale * 4
-		elif key in {plus, minus}:
-			self.scale = self.scale * {plus: 1.4, minus: 0.6}[key]
-		elif key in {faster, slower}:
-			self.display_interval = max(self.display_interval * {faster: 1.5, slower: 0.5}[key], 1)
-		elif key == space:
-			self.paused = not self.paused
-		elif key == enter:
-			if self.paused:
-				self.tick()
-		elif key != -1:
+		if key != -1:
 			print(key)
 
 	def tick(self):

@@ -99,9 +99,11 @@ class RoadExtensionNegotiator(DemandNegotiator):
 			diff = (mdh.pos - mdh.closest_intersection.obj)
 			diff_mag = mag(diff)
 			length_to_build = min(fund, diff_mag)
-			self.city.infrastructure.extend_road(mdh.closest_intersection.obj,
-												 mdh.closest_intersection.obj + diff * length_to_build / diff_mag,
-												 1, True)
+			self.city.infrastructure.extend_road(
+				mdh.closest_intersection.obj,
+				Intersection(mdh.closest_intersection.obj + diff * length_to_build / diff_mag),
+				1, True
+			)
 			return length_to_build
 		return 0
 
@@ -145,7 +147,6 @@ class Infrastructure(RecursiveDemandJudge):
 		self.add_negotiator(RoadExpansionNegotiator(self.city))
 
 		self.candidates = None
-		self.mdh = None
 
 		self.extend_road(root, Intersection(0, 10), 1, True)
 

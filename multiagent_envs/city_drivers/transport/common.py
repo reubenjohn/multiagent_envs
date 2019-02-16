@@ -2,7 +2,10 @@ from multiagent_envs.geometry import Point
 
 
 class Intersection(Point):
-	pass
+	def __new__(cls, x_or_point, y=None):
+		obj = super().__new__(cls, x_or_point, y)
+		obj.visits = 0
+		return obj
 
 
 class Joint:

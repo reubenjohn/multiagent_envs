@@ -1,3 +1,4 @@
+import random
 from typing import List
 from typing import TYPE_CHECKING
 
@@ -21,13 +22,16 @@ class ClosestCache:
 
 
 class Hotspot:
+	mass_multiplier = 1.5
+	mature_mass = 5
 	cost = 100
 
-	def __init__(self, pos: Point, vel: Point, mass=.01):
+	def __init__(self, pos: Point, vel: Point, mass=10):
 		self.pos, self.vel, self.mass = pos, vel, mass
 		self.force = 0
 		self.closest_intersection = ClosestCache()
 		self.least_interconnected = ClosestCache()
+		self.visit_count_on_last_growth = 0
 
 	def update_closest_intersection_cache(self, intersections: List[Intersection], tick):
 		if tick == self.closest_intersection.tick:
@@ -61,21 +65,62 @@ class Hotspot:
 		self.least_interconnected.separation = self.least_interconnected.separations[least_separated_index]
 		return self.least_interconnected
 
+	def reproduce(self, life: 'Life'):
+		child = life.add_hotspot(self.pos + unit(Point.random()) * 100 * life.noise)
 
-class HotspotAccessibilityNegotiator(DemandNegotiator):
+		child.visit_count_on_last_growth = self.visit_count_on_last_growth
+
+		self.mass /= 2
+		child.mass = self.mass
+
+		child.vel = unit(Point.random()) * mag(self.vel) * random.random()
+		self.vel -= child.vel
+
+
+class HotspotSpawnNegotiator(DemandNegotiator):
 	def __init__(self, life: 'Life') -> None:
 		super().__init__('Hotspot Demand', Hotspot.cost)
 		self.life = life
 
 	def setup(self, scenario):
-		return self.life.total_hotspot_speed() + .01
+		return None
 
-	def compute_demand(self, scenario, total_hotspot_speed):
-		return min(1 / total_hotspot_speed, 1)
+	def compute_demand(self, scenario, setup):
+		speeds = [float(mag(hotspot.vel)) for hotspot in self.life.hotspots]
+		if len(self.life.hotspots) > 0:
+			min_speed, max_speed = min(speeds), max(speeds)
+			return (min_speed / max_speed) * (.5 / (len(self.life.hotspots)))
+		else:
+			return 1
 
 	def fund(self, scenario, fund: float, setup):
-		self.life.add_hotspot()
+		self.life.add_hotspot(Point(unit(Point.random()) * 10000 * self.life.noise))
 		return Hotspot.cost
+
+
+class HotspotNegotiator(DemandNegotiator):
+	def __init__(self, life: 'Life') -> None:
+		super().__init__('Hotspot Growth')
+		self.life = life
+
+	def setup(self, scenario):
+		return self.life.most_visited_hotspot(scenario)
+
+	def compute_demand(self, scenario, mvh: Hotspot):
+		if len(self.life.hotspots) > 0:
+			current_count = mvh.closest_intersection.obj.visits
+			prev_count = mvh.visit_count_on_last_growth
+			if prev_count == 0:
+				return 0 if current_count < 5 else 1
+			relative_factor = (current_count / prev_count)
+			return min(1, (relative_factor - 1) / (Hotspot.mass_multiplier - 1))
+		return 0
+
+	def fund(self, scenario, fund: float, mvh: Hotspot):
+		mvh.mass *= Hotspot.mass_multiplier
+		mvh.visit_count_on_last_growth = mvh.closest_intersection.obj.visits
+		mvh.reproduce(self.life)
+		return mvh.mass
 
 
 class InterHotspotConnectivityNegotiator(DemandNegotiator):
@@ -102,8 +147,6 @@ class InterHotspotConnectivityNegotiator(DemandNegotiator):
 			return diff_mag
 		else:
 			return 0
-			self.life.city.infrastructure.extend_road(src, src + unit(diff) * fund, 1, True)
-			return fund
 
 
 class Life(RecursiveDemandJudge):
@@ -112,12 +155,13 @@ class Life(RecursiveDemandJudge):
 		self.friction = 0.0
 		self.drag = 0.001
 		self.noise = 0.01
-		self.growth = 0.01
+		self.growth = 0
 		self.hotspots = []  # type: List[Hotspot]
 		self.momentum = np.ones([len(self.hotspots), len(self.hotspots)], np.float16)
 		self.city = city
 
-		self.add_negotiator(HotspotAccessibilityNegotiator(self)) \
+		self.add_negotiator(HotspotSpawnNegotiator(self)) \
+			.add_negotiator(HotspotNegotiator(self)) \
 			.add_negotiator(InterHotspotConnectivityNegotiator(self))
 
 	def add_hotspot(self, spot: Point = None):
@@ -127,6 +171,7 @@ class Life(RecursiveDemandJudge):
 		self.hotspots.append(hotspot)
 		self.cache_closest_intersection()
 		self.dissipate([hotspot])
+		return hotspot
 
 	def dissipate(self, hotspots: List[Hotspot] = None):
 		hotspots = hotspots or self.hotspots
@@ -136,15 +181,21 @@ class Life(RecursiveDemandJudge):
 				if a_i != b_i:
 					diff = a.pos - b.pos
 					mag_diff = mag(diff)
-					if mag_diff > 0.01:
-						a.force += a.mass * b.mass * diff / mag(diff) ** 3
-			a.vel += (a.force + (np.random.random_sample(2) - .5) * self.noise) / a.mass
+					if mag_diff > 10:
+						a.force += a.mass * b.mass * diff / mag_diff ** 3
+			a.vel += (a.force + Point.random() * self.noise) / a.mass
 			a_speed = mag(a.vel)
 			a.vel *= max(0, (1 - self.friction - self.drag * a_speed)) * a.mass / (a.mass + self.growth)
-			a.mass += self.growth
+			# a.mass += self.growth
 			a.pos += a.vel / a.mass
 
+	def reproduce(self):
+		for parent in self.hotspots:
+			if parent.mass > Hotspot.mature_mass:
+				parent.reproduce(self)
+
 	def tick(self):
+		# self.reproduce()
 		self.dissipate()
 
 	def cache_closest_intersection(self, intersections: List[Intersection] = None, tick: int = None):
@@ -174,3 +225,10 @@ class Life(RecursiveDemandJudge):
 
 	def total_hotspot_speed(self):
 		return sum(mag(hotspot.vel) for hotspot in self.hotspots)
+
+	def most_visited_hotspot(self, tick: int = None):
+		if len(self.hotspots) > 0:
+			self.cache_closest_intersection(list(self.city.infrastructure.intersections), tick)
+			hotspot_list = list(self.hotspots)
+			visits = [hotspot.closest_intersection.obj.visits for hotspot in hotspot_list]
+			return hotspot_list[int(np.argmax(visits))]

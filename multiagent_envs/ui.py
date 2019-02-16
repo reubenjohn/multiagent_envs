@@ -1,8 +1,8 @@
 from typing import Union
 
 import cv2
-import numpy as np
 
+from multiagent_envs.const import *
 from multiagent_envs.geometry import Edge, Point
 
 w, a, s, d = 119, 97, 115, 100
@@ -17,14 +17,14 @@ class Window:
 	def __init__(self, w=1280, h=720):
 		self.w = w
 		self.h = h
-		self.img = self.reset()
+		self.img = self.reset_window()
 		self.frame_hud_count = 0
 
 		self.focus = Point(0, 0)
 		self.scale = 5
 		super().__init__()
 
-	def reset(self):
+	def reset_window(self):
 		self.img = np.ones([self.h, self.w, 3])
 		return self.img
 
@@ -72,15 +72,28 @@ class Env2d(Window):
 	def tick(self):
 		raise NotImplementedError
 
-	def handle_input(self):
-		raise NotImplementedError
+	def handle_input(self, key: int):
+		if key == escape:
+			return True
+		elif key in {w, a, s, d}:
+			self.focus += 10 * {w: Y, a: -X, s: -Y, d: X}[key] / self.scale * 4
+		elif key in {plus, minus}:
+			self.scale = self.scale * {plus: 1.4, minus: 0.6}[key]
+		elif key in {faster, slower}:
+			self.display_interval = max(self.display_interval * {faster: 1.5, slower: 0.5}[key], 1)
+		elif key == space:
+			self.paused = not self.paused
+		elif key == enter:
+			if self.paused:
+				self.tick()
 
 	def iterate(self):
 		if not self.paused:
 			self.tick()
 		if self.ticks % int(self.display_interval) == 0:
 			self.display()
-			return self.handle_input()
+			key = cv2.waitKey(0 if self.paused else 1)
+			return self.handle_input(key)
 
 	def run(self):
 		while True:
