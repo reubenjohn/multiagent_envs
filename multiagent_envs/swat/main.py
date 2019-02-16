@@ -1,6 +1,6 @@
 from typing import TypeVar, List
 
-from multiagent_envs.swat.env import SWAT
+from multiagent_envs.swat.env import SWAT, AgentAction, Goal
 
 ObType = TypeVar('ObType')
 
@@ -15,7 +15,7 @@ class Agent(object):
 
 class DummyAgent(Agent):
 	def act(self, ob: ObType):
-		return 0
+		return AgentAction(1, 1)
 
 	def reset(self):
 		return None
@@ -35,7 +35,9 @@ class MultiAgent(object):
 
 if __name__ == '__main__':
 	n_agents = 4
-	swat = SWAT(n_agents)
+	swat = SWAT(n_agents, Goal(Goal.Verb(Goal.Verb.Type.REACH, None),
+							   Goal.Noun(Goal.Noun.Type.POINT, None)))
+	swat.display_interval = 1
 	agents = MultiAgent([DummyAgent() for _ in range(n_agents)])
 	episodes = 100
 
@@ -46,10 +48,16 @@ if __name__ == '__main__':
 		agents.reset()
 
 		while swat.is_open:
-			actions = agents.act(obs)
-			obs, rews, done, _ = swat.step(actions)
+			swat.handle_input()
+			swat.display()
+
+			done = False
+			for swat.n_step_over in range(int(swat.display_interval)):
+				actions = agents.act(obs)
+				obs, rews, done, _ = swat.step(actions)
+				if done:
+					break
 			if done:
-				print('Done')
 				break
 
 	swat.close()

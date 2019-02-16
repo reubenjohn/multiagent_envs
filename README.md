@@ -14,7 +14,7 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 
 **Key Features** implemented so far
 1. Hotspots form as the city grows.
-2. Roads are built towards the most deprived hotspots.
+2. Roads are built to improve hotspot connectivity.
 3. Vehicles navigate towards randomly assigned goals.
 4. Out of the box classical AI implementation for vehicles to respect road safety.
 
@@ -29,3 +29,4 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 ### SWAT (Work in progress)
 Agents are assigned objectives in a procedurally generated shooting arena.  
 This environment can be instantiated with a wide variety of modes(Free for all, Team death match, etc), scenarios(Initial player positions, weapon layouts, communications channels, etc), maps, etc.
+

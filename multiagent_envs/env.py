@@ -1,6 +1,3 @@
-from threading import Thread
-from time import sleep
-
 from multiagent_envs.ui import *
 
 
@@ -10,8 +7,6 @@ class MultiAgentEnv2d(Window):
 		super().__init__(w, h)
 
 		self.is_open = True
-		self.input_thread = Thread(target=self._input_thread)
-		self.display_ticks_to_skip = 0
 
 		self.steps = 1
 		self.display_interval = 1
@@ -27,10 +22,10 @@ class MultiAgentEnv2d(Window):
 	def step(self, actions):
 		assert not self.done
 		assert len(actions) == self.n_agents
-		while self.paused and self.n_step_over == 0:
-			sleep(.1)
 
-	def handle_input(self, key: int):
+	def handle_input(self, key: int = None):
+		if key is None:
+			key = cv2.waitKey(0 if self.paused else 1)
 		if key == escape:
 			self.is_open = False
 		elif key in {w, a, s, d}:
@@ -47,19 +42,8 @@ class MultiAgentEnv2d(Window):
 
 	def close(self):
 		self.is_open = False
-		self.input_thread.join()
+		print('Destroying all windows')
 		cv2.destroyAllWindows()
 
 	def open(self):
-		self.input_thread.start()
-
-	def _input_thread(self):
-		while self.is_open:
-			if self.display_ticks_to_skip > 0:
-				self.display_ticks_to_skip -= 1
-			else:
-				self.display_ticks_to_skip = self.display_interval
-				self.display()
-
-			key = cv2.waitKey(0 if self.paused else 1)
-			self.handle_input(key)
+		pass
