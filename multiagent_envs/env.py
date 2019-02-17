@@ -17,11 +17,12 @@ class MultiAgentEnv2d(Window):
 
 	def reset(self):
 		self.done = False
-		return [None for _ in range(self.n_agents)]
+		self.steps = 0
 
 	def step(self, actions):
 		assert not self.done
 		assert len(actions) == self.n_agents
+		self.steps += 1
 
 	def handle_input(self, key: int = None):
 		if key is None:

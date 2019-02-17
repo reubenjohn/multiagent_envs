@@ -1,3 +1,6 @@
+from math import ceil
+from typing import Tuple, List
+
 import cv2
 import numpy as np
 
@@ -5,25 +8,42 @@ from multiagent_envs.const import DIRECTIONS
 from multiagent_envs.env import MultiAgentEnv2d
 from multiagent_envs.geometry import Point
 from multiagent_envs.negotiator import DemandJudge
+from multiagent_envs.util import mag
 
 
 class AgentAction(object):
-	def __init__(self, forward, turn):
-		self.forward = np.clip(forward, -1, 1).astype(np.int8)
+	def __init__(self, direction, turn):
+		self.direction = direction
 		self.turn = np.clip(turn, -1, 1).astype(np.int8)
 
 
 class AgentState(object):
-	def __init__(self, pos: Point, orientation: int, goal: 'Goal'):
-		self.pos = pos
-		self.vel = Point(0, 0)
-		self.orientation = orientation
+	def __init__(self):
+		self.initial_pos = self.pos = None
+		self.direction = None
+		self.goal = None
+		self.health = None
+
+	@staticmethod
+	def normalize_direction(orientation: int) -> float:
+		return (orientation - 2) / 2
+
+	@property
+	def denormalized_direction(self) -> int:
+		return int(self.direction * 2) + 2
+
+	def action_update(self, action: AgentAction, env: 'SWAT'):
+		self.direction = self.normalize_direction(self.denormalized_direction + int(np.clip(action.turn, -1, 1)) % 4)
+		c_size = env.cache.corner_offset[0]
+		self.pos += DIRECTIONS[action.direction] * 2 * env.cache.corner_offset
+		self.pos.clip([-1 + c_size, -1 + c_size], [1 - c_size, 1 - c_size], self.pos)
+
+	def reset(self, pos: Point, orientation: int, goal: 'Goal'):
+		self.initial_pos = pos
+		self.pos = Point(pos)
+		self.direction = AgentState.normalize_direction(orientation)
 		self.goal = goal
 		self.health = 1
-
-	def action_update(self, action: AgentAction):
-		self.orientation = (self.orientation + action.turn) % 4
-		self.pos += DIRECTIONS[self.orientation] * 10
 
 
 class Goal:
@@ -47,57 +67,97 @@ class Goal:
 		self.verb, self.noun = verb, noun
 
 
+class Cache:
+	def __init__(self):
+		self.diagonal = None
+		self.cell_size = None
+		self.corner_offset = None
+
+	def update(self, window_width, tiles_shape):
+		self.diagonal = mag(tiles_shape)
+		self.cell_size = window_width / tiles_shape[0]
+		self.corner_offset = np.array([1 / tiles_shape[0], 1 / tiles_shape[1]])
+
+
+class AgentDebug:
+	def __init__(self):
+		self.color = (255, 0, 0)
+
+
 class SWAT(MultiAgentEnv2d, DemandJudge):
-	def __init__(self, n_agents: int, goal: Goal, w=1280, h=720):
-		super().__init__(n_agents, w, h)
-		self.scale = 1
+	def __init__(self, n_agents: int, goal: Goal, tiles_shape: Tuple[int, int] = (10, 10),
+				 window_width: int = 720):
+		window_height = ceil(window_width * tiles_shape[1] / tiles_shape[0])
+		super().__init__(n_agents, window_width, window_height)
+		self.scale = window_width / 2
+		self.tiles_shape = np.array(tiles_shape)
+		self.cache = Cache()
+		self.cache.update(window_width, self.tiles_shape)
 
 		self.goal = goal
 
-		if goal.noun.adjective is None:
-			goal.noun.adjective = self.sample_unique_points(1)[0]
-
-		self.agent_states = [AgentState(point, orientation, goal)
-							 for point, orientation in
-							 zip(self.sample_unique_points(n_agents), self.sample_orientation(n_agents))]
+		self.agent_states = [AgentState() for _ in range(self.n_agents)]
+		self.agent_debugs = [AgentDebug() for _ in range(self.n_agents)]
+		self.reset()
 
 	def sample_unique_points(self, size):
-		return [self.pos_from_seed(seed) for seed in np.random.choice(range(self.w * self.h), size, replace=False)]
+		return [self.pos_from_seed(seed) for seed in
+				np.random.choice(range(self.tiles_shape[0] * self.tiles_shape[1]), size, replace=False)]
 
 	def pos_from_seed(self, seed: int):
-		w, h = self.w, self.h
-		return Point(seed % w - int(w / 2), int(seed / w) - h / 2)
+		n_x, n_y = self.tiles_shape
+		return (Point(seed % n_x, int(seed / n_x)) - self.tiles_shape / 2) / (
+				self.tiles_shape / 2) + self.cache.corner_offset
 
 	def step(self, actions):
 		super().step(actions)
 		for agent_state, action in zip(self.agent_states, actions):
-			agent_state.action_update(action)
+			agent_state.action_update(action, self)
+
+		if self.steps == self.tiles_shape[0] + self.tiles_shape[1]:
+			self.done = True
+			return None, None, self.done, self.agent_debugs
 
 		if self.goal.verb.type == Goal.Verb.Type.REACH:
-			rews = [-1 for _ in range(self.n_agents)]
-			return self.agent_states, rews, self.done, None
+			rews = [(mag(state.initial_pos - state.goal.noun.adjective) - mag(
+				state.pos - state.goal.noun.adjective)) / self.cache.diagonal for state in self.agent_states]
+			for state, rew in zip(self.agent_states, rews):
+				state.health = .5 + float(rew)
+			return self.agent_states, rews, self.done, self.agent_debugs
 		else:
 			raise AssertionError('Unknown goal verb type: ' + self.goal.verb.type)
 
-	def reset(self):
+	def reset(self) -> Tuple[List[AgentState], List[AgentDebug]]:
 		self.steps = 0
-		return super().reset()
+		super().reset()
 
-	def display_agent(self, agent_state: AgentState):
+		self.goal.noun.adjective = self.sample_unique_points(1)[0]
+
+		[state.reset(point, orientation, self.goal)
+		 for state, point, orientation in
+		 zip(self.agent_states,
+			 self.sample_unique_points(self.n_agents), self.sample_orientation(self.n_agents))]
+		if self.goal.verb.type == Goal.Verb.Type.REACH:
+			return self.agent_states, self.agent_debugs
+
+	def display_agent(self, agent_state: AgentState, agent_debug: AgentDebug):
 		center = self.window_point(agent_state.pos)
-		cv2.circle(self.img, center, int(self.scale * 10),
-				   (255 * np.array([agent_state.health, 0, 1 - agent_state.health])).tolist(), -1)
-		cv2.line(self.img, center, self.window_point(agent_state.pos + 10 * DIRECTIONS[agent_state.orientation]),
-				 (0, 255, 0))
+		cv2.line(self.img, center, self.window_point(agent_state.initial_pos), (1, 0, 1))
+		cv2.circle(self.img, center, int(self.cache.cell_size / 2), agent_debug.color, -1)
+		cv2.line(self.img, center,
+				 self.window_point(agent_state.pos + self.cache.corner_offset * DIRECTIONS[agent_state.direction]),
+				 (0, 255, 0), 4)
 
 	def display(self):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
 
-		for agent_state in self.agent_states:
-			self.display_agent(agent_state)
+		for agent_state, agent_debug in zip(self.agent_states, self.agent_debugs):
+			self.display_agent(agent_state, agent_debug)
 
 		if self.goal.verb.type == Goal.Verb.Type.REACH:
-			cv2.circle(self.img, self.window_point(self.goal.noun.adjective), self.scale * 5, (0, 255, 0), -1)
+			center, corner_offset = self.goal.noun.adjective, self.cache.corner_offset
+			cv2.rectangle(self.img, self.window_point(center - corner_offset),
+						  self.window_point(center + corner_offset), (0, 0, 0), -1)
 
 		self.hud('Ticks: %f' % self.steps)
 		self.hud('Ticks per frame: %f' % self.display_interval)
