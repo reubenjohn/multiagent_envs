@@ -142,17 +142,21 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 
 	def display_agent(self, agent_state: AgentState, agent_debug: AgentDebug):
 		center = self.window_point(agent_state.pos)
-		cv2.line(self.img, center, self.window_point(agent_state.initial_pos), (1, 0, 1))
 		cv2.circle(self.img, center, int(self.cache.cell_size / 2), agent_debug.color, -1)
+		cv2.rectangle(self.img, self.window_point(agent_state.pos - self.cache.corner_offset / 2),
+					  self.window_point(agent_state.pos + self.cache.corner_offset / 2),
+					  agent_debug.youth_color, -1)
 		cv2.line(self.img, center,
 				 self.window_point(agent_state.pos + self.cache.corner_offset * DIRECTIONS[agent_state.direction]),
-				 (0, 255, 0), 4)
+				 agent_debug.gene_novelty_color, 4)
 
 	def display(self):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
 
-		for agent_state, agent_debug in zip(self.agent_states, self.agent_debugs):
-			self.display_agent(agent_state, agent_debug)
+		for state in self.agent_states:
+			cv2.line(self.img, self.window_point(state.pos), self.window_point(state.initial_pos), (1, 0, 1))
+		for state, agent_debug in zip(self.agent_states, self.agent_debugs):
+			self.display_agent(state, agent_debug)
 
 		if self.goal.verb.type == Goal.Verb.Type.REACH:
 			center, corner_offset = self.goal.noun.adjective, self.cache.corner_offset

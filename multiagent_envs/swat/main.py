@@ -3,6 +3,7 @@ from typing import TypeVar, List, Generic
 import numpy as np
 
 from multiagent_envs.swat.env import SWAT, AgentAction, Goal, AgentState, AgentDebug
+from multiagent_envs.util import unit
 
 ObType = TypeVar('ObType')
 
@@ -24,7 +25,7 @@ class Agent(object):
 class EvolutionaryAgent(Agent):
 	def __init__(self, weights=None):
 		super().__init__()
-		self.weights = sample([5, 4]) if weights is None else weights
+		self.weights = sample([5, 4]) * 2 - 1 if weights is None else weights
 		self.ob = None
 
 	def act(self, ob: AgentState):
@@ -34,12 +35,32 @@ class EvolutionaryAgent(Agent):
 		direction = AgentState.normalize_direction(int(np.argmax(logits)))
 		return AgentAction(direction, 0)
 
-	def get_mutated_weights(self):
-		return self.weights + sample([5, 4]) * .1, tuple((np.array(self.debug.color) + sample(3) * .1).tolist())
+	def mutation(self, mutation_rate, size):
+		return np.random.normal(0, mutation_rate, size)
+
+	def get_mutated_traits(self, mutation_rate: float):
+		mutated_color = self.debug.true_color + self.mutation(mutation_rate, 3)
+		true_color = unit(mutated_color)
+		return np.clip(self.weights + self.mutation(mutation_rate, [5, 4]), -1, 1), \
+			   true_color, \
+			   self.debug.gene_novelty * (1 - mutation_rate / 4), \
+			   self.debug.youth * (1 - mutation_rate / 4)
+
+	def update_derived_traits(self):
+		self.debug.color = self.debug.true_color.tolist()
+		self.debug.gene_novelty_color = (np.ones(3) * self.debug.gene_novelty).tolist()
+		self.debug.youth_color = (np.ones(3) * self.debug.youth).tolist()
+
+	def inherit_traits(self, traits):
+		self.weights, self.debug.true_color, self.debug.gene_novelty, parent_youth = traits
+		self.update_derived_traits()
 
 	def reset(self, debug: AgentDebug):
 		super().reset(debug)
-		self.debug.color = tuple((sample(3) * .24 + .75).tolist())
+		self.debug.true_color = sample(3)
+		self.debug.youth = 1
+		self.debug.gene_novelty = 1
+		self.update_derived_traits()
 
 
 AgentType = TypeVar('AgentType', bound=Agent)
@@ -63,19 +84,27 @@ class MultiEvolutionaryAgent(MultiAgent):
 		self.selection_rate, self.mutation_rate = selection_rate, mutation_rate
 
 	def reset(self, agent_debug: List[AgentDebug]):
-		super().reset(agent_debug)
-		if self.agents[0].ob is not None:
+		first_reset = self.agents[0].ob is None
+		if not first_reset:
 			fitness_order = np.argsort([-agent.ob.health for agent in self.agents])
-
 			fitness_boundary = int(len(self.agents) * self.selection_rate)
-			mutated_parent_traits = [agent.get_mutated_weights() for agent in
-									 (self.agents[agent_i] for agent_i in
-									  fitness_order[:fitness_boundary])]
+			mutated_parent_traits = [agent.get_mutated_traits(self.mutation_rate) for agent in
+									 (self.agents[agent_i] for agent_i in fitness_order[:fitness_boundary])]
+
+			super().reset(agent_debug)
+
+			for agent_i in range(fitness_boundary):
+				parent = self.agents[fitness_order[agent_i]]
+				parent_traits = mutated_parent_traits[agent_i]
+				parent.debug.youth = parent_traits[3]
+				parent.inherit_traits(parent_traits)
+
 			for agent_i in range(fitness_boundary, len(self.agents)):
 				inheriting_agent = self.agents[fitness_order[agent_i]]
-				weights, color = mutated_parent_traits[(agent_i - fitness_boundary) % fitness_boundary]
-				inheriting_agent.weights = weights
-				inheriting_agent.debug.color = color
+				parent_traits = mutated_parent_traits[(agent_i - fitness_boundary) % fitness_boundary]
+				inheriting_agent.inherit_traits(parent_traits)
+		else:
+			super().reset(agent_debug)
 
 
 if __name__ == '__main__':
