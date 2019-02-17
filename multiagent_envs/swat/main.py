@@ -55,6 +55,10 @@ class EvolutionaryAgent(Agent):
 		self.weights, self.debug.true_color, self.debug.gene_novelty, parent_youth = traits
 		self.update_derived_traits()
 
+	def preserve(self, traits):
+		weights, self.debug.true_color, self.debug.gene_novelty, self.debug.youth = traits
+		self.update_derived_traits()
+
 	def reset(self, debug: AgentDebug):
 		super().reset(debug)
 		self.debug.true_color = sample(3)
@@ -95,14 +99,13 @@ class MultiEvolutionaryAgent(MultiAgent):
 
 			for agent_i in range(fitness_boundary):
 				parent = self.agents[fitness_order[agent_i]]
-				parent_traits = mutated_parent_traits[agent_i]
-				parent.debug.youth = parent_traits[3]
-				parent.inherit_traits(parent_traits)
+				mutated_traits = mutated_parent_traits[agent_i]
+				parent.preserve(mutated_traits)
 
 			for agent_i in range(fitness_boundary, len(self.agents)):
 				inheriting_agent = self.agents[fitness_order[agent_i]]
-				parent_traits = mutated_parent_traits[(agent_i - fitness_boundary) % fitness_boundary]
-				inheriting_agent.inherit_traits(parent_traits)
+				mutated_traits = mutated_parent_traits[(agent_i - fitness_boundary) % fitness_boundary]
+				inheriting_agent.inherit_traits(mutated_traits)
 		else:
 			super().reset(agent_debug)
 
