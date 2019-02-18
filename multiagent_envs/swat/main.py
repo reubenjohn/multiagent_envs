@@ -24,13 +24,13 @@ class Agent(object):
 
 class EvolutionaryAgent(Agent):
 	def __init__(self, weights=None):
+		self.weights = sample([6, 5]) * 2 -1 if weights is None else weights
 		super().__init__()
-		self.weights = sample([5, 4]) * 2 - 1 if weights is None else weights
 		self.ob = None
 
 	def act(self, ob: AgentState):
 		self.ob = ob
-		ob_vector = np.concatenate([ob.pos, [ob.direction], ob.goal.noun.adjective])
+		ob_vector = np.concatenate([ob.pos, [ob.direction], ob.goal.noun.adjective, [1]])
 		logits = np.matmul(np.expand_dims(ob_vector, 0), self.weights)[0]
 		direction = AgentState.normalize_direction(int(np.argmax(logits)))
 		return AgentAction(direction, 0)
@@ -41,7 +41,7 @@ class EvolutionaryAgent(Agent):
 	def get_mutated_traits(self, mutation_rate: float):
 		mutated_color = self.debug.true_color + self.mutation(mutation_rate, 3)
 		true_color = unit(mutated_color)
-		return np.clip(self.weights + self.mutation(mutation_rate, [5, 4]), -1, 1), \
+		return np.clip(self.weights + self.mutation(mutation_rate, [6, 5]), -1, 1), \
 			   true_color, \
 			   self.debug.gene_novelty * (1 - mutation_rate / 4), \
 			   self.debug.youth * (1 - mutation_rate / 4)
@@ -83,12 +83,12 @@ class MultiAgent(Generic[AgentType]):
 
 
 class MultiEvolutionaryAgent(MultiAgent):
-	def __init__(self, agents: List[EvolutionaryAgent], selection_rate: float = .1, mutation_rate: float = .1):
+	def __init__(self, agents: List[EvolutionaryAgent], selection_rate: float = .1, mutation_rate: float = .01):
 		super().__init__(agents)
 		self.selection_rate, self.mutation_rate = selection_rate, mutation_rate
 
 	def reset(self, agent_debug: List[AgentDebug]):
-		first_reset = self.agents[0].ob is None
+		first_reset = (self.agents[0].ob and self.agents[0].ob.health) is None
 		if not first_reset:
 			fitness_order = np.argsort([-agent.ob.health for agent in self.agents])
 			fitness_boundary = int(len(self.agents) * self.selection_rate)
@@ -115,17 +115,16 @@ if __name__ == '__main__':
 	swat = SWAT(n_agents, Goal(Goal.Verb(Goal.Verb.Type.REACH, None),
 							   Goal.Noun(Goal.Noun.Type.POINT, None)), (25, 25))
 	swat.display_interval = 1
-	multi_agent = MultiEvolutionaryAgent([EvolutionaryAgent() for _ in range(n_agents)])
+	multi_agent = MultiEvolutionaryAgent([EvolutionaryAgent() for _ in range(n_agents)], selection_rate=.9, mutation_rate=.05)
 	episodes = 1000
 
 	swat.open()
 
 	for episode in range(episodes):
-		obs, debugs = swat.reset()
-		multi_agent.reset(debugs)
+		multi_agent.reset(swat.agent_debugs)
+		obs = swat.reset()
 
 		while swat.is_open:
-			swat.display()
 			swat.handle_input()
 
 			done = False
@@ -134,6 +133,8 @@ if __name__ == '__main__':
 				obs, rews, done, _ = swat.step(actions)
 				if done or not swat.is_open:
 					break
+			if swat.is_open:
+				swat.display()
 			if done:
 				break
 		if not swat.is_open:

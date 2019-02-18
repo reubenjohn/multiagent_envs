@@ -43,7 +43,7 @@ class AgentState(object):
 		self.pos = Point(pos)
 		self.direction = AgentState.normalize_direction(orientation)
 		self.goal = goal
-		self.health = 1
+		self.health = None
 
 
 class Goal:
@@ -70,6 +70,7 @@ class Goal:
 class Cache:
 	def __init__(self):
 		self.diagonal = None
+		self.normalized_diagonal = np.sqrt(8)
 		self.cell_size = None
 		self.corner_offset = None
 
@@ -120,14 +121,17 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 
 		if self.goal.verb.type == Goal.Verb.Type.REACH:
 			rews = [(mag(state.initial_pos - state.goal.noun.adjective) - mag(
-				state.pos - state.goal.noun.adjective)) / self.cache.diagonal for state in self.agent_states]
+				state.pos - state.goal.noun.adjective)) / self.cache.normalized_diagonal for state in self.agent_states]
 			for state, rew in zip(self.agent_states, rews):
-				state.health = .5 + float(rew)
+				state.health = rew
 			return self.agent_states, rews, self.done, self.agent_debugs
 		else:
 			raise AssertionError('Unknown goal verb type: ' + self.goal.verb.type)
 
-	def reset(self) -> Tuple[List[AgentState], List[AgentDebug]]:
+	def reset(self) -> List[AgentState]:
+		if self.agent_states[0].health is not None:
+			healths = [state.health for state in self.agent_states]
+			print("%.4f, %.4f" % (max(healths), min(healths)))
 		self.steps = 0
 		super().reset()
 
@@ -138,7 +142,7 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 		 zip(self.agent_states,
 			 self.sample_unique_points(self.n_agents), self.sample_orientation(self.n_agents))]
 		if self.goal.verb.type == Goal.Verb.Type.REACH:
-			return self.agent_states, self.agent_debugs
+			return self.agent_states
 
 	def display_agent(self, agent_state: AgentState, agent_debug: AgentDebug):
 		center = self.window_point(agent_state.pos)
@@ -163,9 +167,9 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 			cv2.rectangle(self.img, self.window_point(center - corner_offset),
 						  self.window_point(center + corner_offset), (0, 0, 0), -1)
 
-		self.hud('Ticks: %f' % self.steps)
-		self.hud('Ticks per frame: %f' % self.display_interval)
-		self.hud('Scale: %f' % self.scale)
+		self.hud('Ticks: %d' % self.steps)
+		self.hud('Ticks per frame: %.1f' % self.display_interval)
+		self.hud('Scale: %.2f' % self.scale)
 		self.hud('___')
 		super().display()
 
