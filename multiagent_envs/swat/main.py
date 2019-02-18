@@ -83,7 +83,7 @@ class MultiAgent(Generic[AgentType]):
 
 
 class MultiEvolutionaryAgent(MultiAgent):
-	def __init__(self, agents: List[EvolutionaryAgent], selection_rate: float = .1, mutation_rate: float = .01):
+	def __init__(self, agents: List[EvolutionaryAgent], selection_rate: float = .8, mutation_rate: float = .01):
 		super().__init__(agents)
 		self.selection_rate, self.mutation_rate = selection_rate, mutation_rate
 
@@ -111,11 +111,11 @@ class MultiEvolutionaryAgent(MultiAgent):
 
 
 if __name__ == '__main__':
-	n_agents = 50
+	n_agents = 75
 	swat = SWAT(n_agents, Goal(Goal.Verb(Goal.Verb.Type.REACH, None),
-							   Goal.Noun(Goal.Noun.Type.POINT, None)), (25, 25))
+							   Goal.Noun(Goal.Noun.Type.POINT, None)), (25, 25), 480)
 	swat.display_interval = 1
-	multi_agent = MultiEvolutionaryAgent([EvolutionaryAgent() for _ in range(n_agents)], selection_rate=.9, mutation_rate=.05)
+	multi_agent = MultiEvolutionaryAgent([EvolutionaryAgent() for _ in range(n_agents)], selection_rate=.8, mutation_rate=.05)
 	episodes = 1000
 
 	swat.open()
