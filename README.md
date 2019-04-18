@@ -30,3 +30,10 @@ All aspects of the city from city hotspots, goal assignment, road constructions,
 Agents are assigned objectives in a procedurally generated shooting arena.  
 This environment can be instantiated with a wide variety of modes(Free for all, Team death match, etc), scenarios(Initial player positions, weapon layouts, communications channels, etc), maps, etc.
 
+**Key Features** implemented so far
+1. All players are given a target location to which they have to move
+2. Evolutionary algorithm baseline
+
+`python3 -m multiagent_envs.swat.main`
+
+![City Drivers](multiagent_envs/swat/screenshots/v0.1.0.png "SWAT v0.1.0")
