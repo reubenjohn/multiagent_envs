@@ -154,7 +154,7 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 				 self.window_point(agent_state.pos + self.cache.corner_offset * DIRECTIONS[agent_state.direction]),
 				 agent_debug.gene_novelty_color, 4)
 
-	def display(self):
+	def display(self, show_debug_hud: bool = True):
 		cv2.rectangle(self.img, (0, 0), (self.w, self.h), (255, 255, 255), -1)
 
 		for state in self.agent_states:
@@ -167,11 +167,7 @@ class SWAT(MultiAgentEnv2d, DemandJudge):
 			cv2.rectangle(self.img, self.window_point(center - corner_offset),
 						  self.window_point(center + corner_offset), (0, 0, 0), -1)
 
-		self.hud('Ticks: %d' % self.steps)
-		self.hud('Ticks per frame: %.1f' % self.display_interval)
-		self.hud('Scale: %.2f' % self.scale)
-		self.hud('___')
-		super().display()
+		super().display(show_debug_hud)
 
 	def sample_orientation(self, size: int):
 		return np.random.choice(range(4), size)

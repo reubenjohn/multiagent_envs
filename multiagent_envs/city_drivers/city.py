@@ -28,9 +28,6 @@ class City(Env2d, DemandJudge):
 		cv2.line(self.intersection, (0, 0), (16, 16), (255, 0, 0, 255))
 		cv2.line(self.intersection, (0, 16), (16, 0), (0, 0, 255, 255))
 
-		self.car = cv2.imread('pinpoint.png', cv2.IMREAD_UNCHANGED)
-		self.car = cv2.resize(self.car, tuple((np.array(self.car.shape[:2]) / 16).astype(np.int)))
-
 	def demand_hud(self, negotiator_name: str, demand: float, min_demand: float, max_demand: float):
 		relative_demand = (demand - min_demand) / (max_demand - min_demand)
 		color = (.6 - .6 * float(relative_demand), 1 - 1 * float(relative_demand), .6 + .4 * float(relative_demand))

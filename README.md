@@ -37,3 +37,11 @@ This environment can be instantiated with a wide variety of modes(Free for all, 
 `python3 -m multiagent_envs.swat.main`
 
 ![City Drivers](multiagent_envs/swat/screenshots/v0.1.0.png "SWAT v0.1.0")
+
+### RoundAbout (Work in progress)
+N cars in a round about must control their acceleration so as to maximise their collective speed.
+This can be done through coordinated driving so as to prevent pile-ups.
+
+`python3 -m multiagent_envs.swat.main`
+
+![City Drivers](multiagent_envs/round_about/screenshots/v0.1.0.png "RoundAbout v0.1.0")

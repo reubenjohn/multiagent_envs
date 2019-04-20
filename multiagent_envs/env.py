@@ -48,3 +48,11 @@ class MultiAgentEnv2d(Window):
 
 	def open(self):
 		pass
+
+	def display(self, show_debug_hud: bool = False):
+		if show_debug_hud:
+			self.hud('___')
+			self.hud('Ticks: %d' % self.steps)
+			self.hud('Ticks per frame: %.1f' % self.display_interval)
+			self.hud('Scale: %.2f' % self.scale)
+		super().display()

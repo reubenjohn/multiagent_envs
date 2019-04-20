@@ -28,17 +28,25 @@ class Window:
 		self.img = np.ones([self.h, self.w, 3])
 		return self.img
 
-	def window_transform(self, obj: Union[Point, Edge]):
+	def _window_transform_point(self, point: Point):
+		return Point(self.w / 2 + (point[0] - self.focus[0]) * self.scale,
+					 self.h / 2 - (point[1] - self.focus[1]) * self.scale)
+
+	def window_transform_float(self, scalar):
+		return scalar * self.scale
+
+	def window_transform(self, obj: Union[Point, Edge, float, int]):
 		if isinstance(obj, Point):
-			return Point(self.w / 2 + (obj[0] - self.focus[0]) * self.scale,
-						 self.h / 2 - (obj[1] - self.focus[1]) * self.scale)
+			return tuple(self._window_transform_point(obj).astype(np.int))
 		elif isinstance(obj, Edge):
-			return Edge(self.window_transform(obj.a), self.window_transform(obj.b))
+			return Edge(self._window_transform_point(obj.a), self._window_transform_point(obj.b))
+		elif isinstance(obj, (float, int)):
+			return int(obj * self.scale)
 		else:
 			raise AssertionError('Object ' + str(obj) + ' must be an instance of either Point or Edge')
 
 	def window_point(self, p: Point):
-		return tuple(self.window_transform(p).astype(np.int))
+		return self.window_transform(p)
 
 	def display_edge(self, e: Edge, color=None, thickness=1):
 		if color is None:
