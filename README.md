@@ -44,4 +44,4 @@ This can be done through coordinated driving so as to prevent pile-ups.
 
 `python3 -m multiagent_envs.swat.main`
 
-![City Drivers](multiagent_envs/round_about/screenshots/v0.1.0.png "RoundAbout v0.1.0")
+![City Drivers](multiagent_envs/round_about/screenshots/v0.2.1.gif "RoundAbout v0.1.0")
