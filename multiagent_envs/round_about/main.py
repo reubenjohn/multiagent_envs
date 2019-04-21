@@ -1,4 +1,3 @@
-from time import sleep
 from typing import TypeVar, List, Generic
 
 import numpy as np
@@ -24,7 +23,7 @@ class Agent(object):
 
 
 class EvolutionaryAgent(Agent):
-	def __init__(self, max_acc: float, weights=None, n_inputs=3, n_outputs=3, debug=None):
+	def __init__(self, max_acc: float, weights=None, n_inputs=5, n_outputs=3, debug=None):
 		self.max_acc = max_acc
 		self.n_inputs, self.n_outputs = n_inputs + 2, n_outputs
 		self.weights = sample([self.n_inputs, n_outputs]) * 2 - 1 if weights is None else weights
@@ -36,10 +35,9 @@ class EvolutionaryAgent(Agent):
 
 	def act(self, ob: AgentOb):
 		self.ob = ob
-		ob_vector = np.array([ob.dist_behind, ob.dist_forward, ob.vel, 1, np.random.random_sample()])
+		ob_vector = np.array([ob.vel, ob.behind_dist, ob.behind_vel, ob.forward_dist, ob.forward_vel, 1, np.random.random_sample()])
 		output_logits = np.matmul(np.expand_dims(ob_vector, 0), self.weights)[0]
 		choice = int(np.argmax(output_logits))
-		# choice = np.random.choice([0, 1, 2])
 		acc = [-self.max_acc, 0, self.max_acc][choice]
 		return AgentAction(acc)
 
@@ -122,14 +120,14 @@ class MultiEvolutionaryAgent(MultiAgent):
 
 
 if __name__ == '__main__':
-	n_agents = 15
+	n_agents = 5
 	env = RoundAbout(n_agents)
 	env.display_interval = 1
 	multi_agent = MultiEvolutionaryAgent(
 		[EvolutionaryAgent(env.max_acc, debug=agent_debug) for agent_debug in env.agent_debugs],
 		selection_rate=.8, mutation_rate=.05
 	)
-	episodes = 1000
+	episodes = 10000
 
 	env.open()
 
@@ -149,7 +147,6 @@ if __name__ == '__main__':
 					break
 			if env.is_open:
 				env.display()
-				sleep(.25)
 			if done:
 				break
 		if not env.is_open:

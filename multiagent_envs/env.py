@@ -8,6 +8,7 @@ class MultiAgentEnv2d(Window):
 
 		self.is_open = True
 
+		self.episode = 0
 		self.steps = 1
 		self.display_interval = 1
 		self.paused = False
@@ -18,6 +19,7 @@ class MultiAgentEnv2d(Window):
 	def reset(self):
 		self.done = False
 		self.steps = 0
+		self.episode += 1
 
 	def step(self, actions):
 		assert not self.done
@@ -52,6 +54,7 @@ class MultiAgentEnv2d(Window):
 	def display(self, show_debug_hud: bool = False):
 		if show_debug_hud:
 			self.hud('___')
+			self.hud('Episode: %d' % self.episode)
 			self.hud('Ticks: %d' % self.steps)
 			self.hud('Ticks per frame: %.1f' % self.display_interval)
 			self.hud('Scale: %.2f' % self.scale)
